@@ -1,0 +1,7 @@
+{
+  "name": "1945-shooting-game",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular"
+}

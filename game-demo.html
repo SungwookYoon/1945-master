@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1945 슈팅 게임 데모</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            font-family: 'Arial', sans-serif;
+            color: white;
+            text-align: center;
+        }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 15px;
+            margin: 20px auto;
+            max-width: 900px;
+        }
+
+        canvas {
+            border: 3px solid #333;
+            background: linear-gradient(to bottom, #001122, #003366);
+            border-radius: 10px;
+        }
+
+        .game-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            border: 1px solid #444;
+        }
+
+        .controls {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(52, 152, 219, 0.2);
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+
+        .score-display {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .start-button {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 25px;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .start-button:hover {
+            background: #229954;
+            transform: translateY(-2px);
+        }
+
+        .start-button:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+            transform: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>1945 슈팅 게임 데모</h1>
+        <p>1945년대 스타일의 고전 슈팅 게임을 Canvas API로 구현했습니다.</p>
+
+        <canvas id="gameCanvas" width="800" height="900"></canvas>
+
+        <div class="game-info">
+            <div class="score-display">점수: <span id="score">0</span></div>
+            <div class="score-display">체력: <span id="health">100</span></div>
+            <div class="score-display">폭탄: <span id="bombs">3</span></div>
+        </div>
+
+        <div class="controls">
+            <h3>조작법</h3>
+            <p>방향키: 이동 | 스페이스바: 총알 발사 | B: 폭탄</p>
+        </div>
+
+        <button id="startBtn" class="start-button" onclick="startGame()">게임 시작</button>
+        <button id="pauseBtn" class="start-button" onclick="pauseGame()" disabled>일시정지</button>
+    </div>
+
+    <script>
+        // 간단한 게임 데모 구현
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let gameRunning = false;
+        let score = 0;
+        let health = 100;
+        let bombs = 3;
+
+        // 플레이어
+        let player = {
+            x: 400,
+            y: 800,
+            width: 64,
+            height: 64,
+            speed: 5
+        };
+
+        // 총알 배열
+        let bullets = [];
+        let enemies = [];
+        let enemyBullets = [];
+
+        // 키 상태
+        let keys = {};
+
+        // 게임 루프
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 게임 업데이트
+        function update() {
+            // 플레이어 이동
+            if (keys['ArrowLeft']) player.x = Math.max(0, player.x - player.speed);
+            if (keys['ArrowRight']) player.x = Math.min(canvas.width - player.width, player.x + player.speed);
+            if (keys['ArrowUp']) player.y = Math.max(0, player.y - player.speed);
+            if (keys['ArrowDown']) player.y = Math.min(canvas.height - player.height, player.y + player.speed);
+
+            // 총알 업데이트
+            bullets.forEach((bullet, index) => {
+                bullet.y -= bullet.speed;
+                if (bullet.y < 0) bullets.splice(index, 1);
+            });
+
+            // 적 업데이트
+            enemies.forEach((enemy, index) => {
+                enemy.y += enemy.speed;
+                if (enemy.y > canvas.height) enemies.splice(index, 1);
+            });
+
+            // 적 총알 업데이트
+            enemyBullets.forEach((bullet, index) => {
+                bullet.y += bullet.speed;
+                if (bullet.y > canvas.height) enemyBullets.splice(index, 1);
+            });
+
+            // 충돌 감지
+            checkCollisions();
+
+            // 적 생성
+            if (Math.random() < 0.02) {
+                spawnEnemy();
+            }
+        }
+
+        // 게임 렌더링
+        function render() {
+            // 캔버스 클리어
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 배경
+            drawBackground();
+
+            // 플레이어
+            ctx.fillStyle = '#00ff00';
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            ctx.strokeStyle = '#ffffff';
+            ctx.strokeRect(player.x, player.y, player.width, player.height);
+
+            // 총알
+            ctx.fillStyle = '#ffff00';
+            bullets.forEach(bullet => {
+                ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+            });
+
+            // 적
+            ctx.fillStyle = '#ff0000';
+            enemies.forEach(enemy => {
+                ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+            });
+
+            // 적 총알
+            ctx.fillStyle = '#ff6666';
+            enemyBullets.forEach(bullet => {
+                ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+            });
+        }
+
+        // 배경 그리기
+        function drawBackground() {
+            // 별
+            ctx.fillStyle = '#ffffff';
+            for (let i = 0; i < 50; i++) {
+                const x = (i * 13) % canvas.width;
+                const y = (i * 17) % canvas.height;
+                ctx.fillRect(x, y, 2, 2);
+            }
+        }
+
+        // 적 생성
+        function spawnEnemy() {
+            enemies.push({
+                x: Math.random() * (canvas.width - 40),
+                y: -40,
+                width: 40,
+                height: 40,
+                speed: 2 + Math.random() * 2
+            });
+        }
+
+        // 충돌 감지
+        function checkCollisions() {
+            // 플레이어 총알과 적
+            bullets.forEach((bullet, bulletIndex) => {
+                enemies.forEach((enemy, enemyIndex) => {
+                    if (bullet.x < enemy.x + enemy.width &&
+                        bullet.x + bullet.width > enemy.x &&
+                        bullet.y < enemy.y + enemy.height &&
+                        bullet.y + bullet.height > enemy.y) {
+
+                        bullets.splice(bulletIndex, 1);
+                        enemies.splice(enemyIndex, 1);
+                        score += 100;
+                        updateUI();
+                    }
+                });
+            });
+
+            // 적과 플레이어
+            enemies.forEach(enemy => {
+                if (player.x < enemy.x + enemy.width &&
+                    player.x + player.width > enemy.x &&
+                    player.y < enemy.y + enemy.height &&
+                    player.y + player.height > enemy.y) {
+
+                    health -= 20;
+                    updateUI();
+
+                    if (health <= 0) {
+                        gameOver();
+                    }
+                }
+            });
+        }
+
+        // UI 업데이트
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('health').textContent = health;
+            document.getElementById('bombs').textContent = bombs;
+        }
+
+        // 게임 오버
+        function gameOver() {
+            gameRunning = false;
+            alert(`게임 오버! 최종 점수: ${score}`);
+            resetGame();
+        }
+
+        // 게임 리셋
+        function resetGame() {
+            score = 0;
+            health = 100;
+            bombs = 3;
+            bullets = [];
+            enemies = [];
+            enemyBullets = [];
+            player.x = 400;
+            player.y = 800;
+            updateUI();
+        }
+
+        // 게임 시작
+        function startGame() {
+            if (!gameRunning) {
+                gameRunning = true;
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('pauseBtn').disabled = false;
+                gameLoop();
+            }
+        }
+
+        // 게임 일시정지
+        function pauseGame() {
+            gameRunning = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+        }
+
+        // 키보드 이벤트
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+
+            if (e.key === ' ' && gameRunning) {
+                // 총알 발사
+                bullets.push({
+                    x: player.x + player.width / 2 - 4,
+                    y: player.y,
+                    width: 8,
+                    height: 16,
+                    speed: 8
+                });
+            }
+
+            if (e.key === 'b' || e.key === 'B') {
+                // 폭탄 사용
+                if (bombs > 0) {
+                    bombs--;
+                    enemies.forEach(enemy => {
+                        enemy.y = canvas.height + 100; // 화면 밖으로
+                    });
+                    updateUI();
+                }
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        // 초기 UI 업데이트
+        updateUI();
+    </script>
+</body>
+</html>
